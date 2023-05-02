@@ -161,10 +161,19 @@ int UnmapMemory(void *area, size_t bytes)
 #include <windows.h>
 
 #define MEMORY_MAPPING_USES_MALLOC 0
-void* MapMemory (size_t bytes, PageType)
+void* MapMemory (size_t bytes, PageType pageType)
 {
     /* Is VirtualAlloc thread safe? */
-    return VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (pageType == REGULAR) {
+        return VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    }
+
+    if (pageType == PREALLOCATED_HUGE_PAGE) {
+        MALLOC_ASSERT((bytes % HUGE_PAGE_SIZE) == 0, "Mapping size should be divisible by huge page size");
+        return VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+    }
+
+    return nullptr;
 }
 
 int UnmapMemory(void *area, size_t /*bytes*/)

@@ -488,11 +488,30 @@ private:
             MALLOC_ASSERT(hugePageSize != 0, "Huge Page size can't be zero if we found thp existence.");
             thpAvailable = true;
         }
+        hugePageSize *= 1024; // was read in KB from meminfo
+#elif (_WIN32 || _WIN64) && !__TBB_WIN8UI_SUPPORT
+        HANDLE hToken = nullptr;
+        bool success = OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hToken);
+
+        TOKEN_PRIVILEGES tp = {};
+        tp.PrivilegeCount = 1;
+        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+        success = success && LookupPrivilegeValue(nullptr, SE_LOCK_MEMORY_NAME, &tp.Privileges[0].Luid);
+        success = success && AdjustTokenPrivileges(hToken, FALSE, &tp, 0, (PTOKEN_PRIVILEGES)nullptr, 0);
+        if (hToken)
+            CloseHandle(hToken);
+
+        size_t largePageMinSize = GetLargePageMinimum();
+        if (success && largePageMinSize > 0) {
+            hugePageSize = static_cast<long long>(largePageMinSize);
+            hpAvailable = true;
+        }
+
 #endif
         MALLOC_ASSERT(!pageSize, "Huge page size can't be set twice. Double initialization.");
 
         // Initialize object variables
-        pageSize       = hugePageSize * 1024; // was read in KB from meminfo
+        pageSize       = hugePageSize;
         isHPAvailable  = hpAvailable;
         isTHPAvailable = thpAvailable;
     }
